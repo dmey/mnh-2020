@@ -1,0 +1,36 @@
+Bootstrap: docker
+From: ubuntu:18.04
+
+%post
+    set -ex
+
+    apt-get -y update
+    apt-get -y install wget
+
+    CONDA_ROOT=/miniconda
+    cd /tmp
+    wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+    bash miniconda.sh -b -p ${CONDA_ROOT}
+    rm miniconda.sh
+    PATH=${PATH}:${CONDA_ROOT}/bin
+    conda init bash
+
+    conda create -n synthia-paper -c defaults -c conda-forge \
+        python=3.8 numpy scipy xarray pandas netcdf4 \
+        matplotlib statsmodels tqdm jupyter pip bottleneck
+
+    # https://github.com/ContinuumIO/docker-images/issues/89#issuecomment-467287039
+    . ${CONDA_ROOT}/etc/profile.d/conda.sh
+    conda activate synthia-paper
+
+    # Install pip packages
+    pip --no-cache-dir install tensorflow pyvinecopulib synthia
+
+    # Cleanup
+    conda clean -a
+    rm -rf /var/lib/apt/lists/*
+
+# Available at runtime, not during build (= %post section).
+%environment
+    export CONDA_ROOT=/miniconda
+    export PATH=${PATH}:${CONDA_ROOT}/bin
