@@ -166,7 +166,7 @@ def compute_stats(true, pred):
     return df_stats
 
 
-def load_ds_inputs(proj_path, columns=slice(0, None)):
+def load_ds_inputs(proj_path, columns=slice(None, None)):
     """ Load and subset the input data used throughout the experiments
     """
     ds_inputs = xr.open_dataset(proj_path / 'data' / 'nwp_saf_profiles_in.nc')
@@ -483,7 +483,8 @@ def plot_boxplots(item, ax, col_idx, row_idx, metric, y_lim, x_min_max=(-1, 12))
     ax[row_idx, col_idx].set_yscale(yscale)
     ax[row_idx, col_idx].tick_params(axis='both', which='major', labelsize=16)
     ax[row_idx, col_idx].yaxis.set_major_formatter(FormatStrFormatter('%0.1f'))
-    ax[row_idx, 0].set_ylabel(metric_labels[metric], fontsize=16)
+    ax[row_idx, 0].set_ylabel(metric_labels["bias"], fontsize=16)
+    ax[row_idx, 1].set_ylabel(metric_labels["mae"], fontsize=16)
     ax[row_idx, col_idx].set_xlabel(
         'Copula type grouped by augmentation factor', fontsize=16)
 
@@ -503,11 +504,12 @@ def make_legend(ax, row_idx, col_idx, type):
         handles=patches, loc='upper right', fontsize=16)
 
 
-def plot_boxplot_multi(stats_objs_obs, stats_objs_emu, metric, f_path=None, plot_title=True, skip_x_label=True, subplot_ids=['a', 'b']):
+def plot_boxplot_multi(stats_objs_obs, stats_objs_emu, metric,
+    f_path=None, plot_title=True, skip_x_label=True, subplot_ids=['a', 'b']):
     nrows = 1
     ncols = 2
     _, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(
-        10 * ncols, 6 * nrows), squeeze=False)
+        9 * ncols, 6 * nrows), squeeze=False)
 
     min_per_row = defaultdict(list)  # mapping from row idx to list of mins
     max_per_row = defaultdict(list)  # mapping from row idx to list of maxs
@@ -527,25 +529,20 @@ def plot_boxplot_multi(stats_objs_obs, stats_objs_emu, metric, f_path=None, plot
         min_max_per_row[row_idx] = (
             np.min(min_per_row[row_idx]), np.max(max_per_row[row_idx]))
 
-    for item_obs, item_emu in zip(stats_objs_obs, stats_objs_emu):
+    for item_obs, item_emu in zip(stats_objs_emu, stats_objs_emu):
         row_idx_obs = data_fraction_to_row_idx[item_obs['data_fraction']]
         row_idx_emu = data_fraction_to_row_idx[item_emu['data_fraction']]
 
-        plot_boxplots(item_obs, axs, 0, row_idx_obs, metric,
-                      y_lim=min_max_per_row[row_idx_obs])
-        plot_boxplots(item_emu, axs, 1, row_idx_emu, metric,
-                      y_lim=min_max_per_row[row_idx_emu])
+        plot_boxplots(item_emu, axs, 0, row_idx_emu, "bias",
+                      y_lim=[-0.5, 0.5])
+        plot_boxplots(item_emu, axs, 1, row_idx_emu, "mae",
+                      y_lim=[0, 1.7])
 
-    if plot_title:
-        axs[nrows - 1, 0].set_title("Observation-based training (OBT)",
-                                    fontsize=18, fontweight='bold')
-        axs[nrows - 1, 1].set_title("Emulation-based training (EBT)",
-                                    fontsize=18, fontweight='bold')
-        # Legends on top plots only.
-        make_legend(axs, nrows - 1, 1, 'boxplot')
+    # Top right
+    make_legend(axs, nrows - 1, 1, 'boxplot')
 
     for i, ax in enumerate(axs.flatten()):
-        ax.text(-0.05, 1.06, '[' + subplot_ids[i] + ']', transform=ax.transAxes,
+        ax.text(0, 1.1, '[' + subplot_ids[i] + ']', transform=ax.transAxes,
                 fontsize=16, va='top', ha='right')
         # Show ticks and x labels only on the bottom plot.
         if skip_x_label:
@@ -557,7 +554,7 @@ def plot_boxplot_multi(stats_objs_obs, stats_objs_emu, metric, f_path=None, plot
              f'{x}x' for x in xticks_vals])
 
     if f_path:
-        plt.tight_layout(pad=3.)
+        plt.tight_layout()
         plt.savefig(f_path)
 
 
@@ -597,39 +594,43 @@ def plot_error_proj(copulas, fig_path):
                   '0.1-quantile', '0.5-quantile', '0.9-quantile']
     labels = ['Mean', 'Variance', 'Standard deviation',
               '10 % quantile', '50 % quantile', '90 % quantile']
-    _, ax = plt.subplots(2, 3, figsize=(16, 12))
+    _, ax = plt.subplots(2, 3, figsize=(12, 8))
     ax = ax.flatten()
     for idx, stat_name in enumerate(stat_names):
         for copula in copulas:
-            label = f"{item_params[copula['name'].lower()]['name']} {'($X$, $Y$)' if copula['has_targets'] == '1' else '($X$)'}"
-            stat = copula['stats'][stat_name]
-            ax[idx].scatter(stat['true'], stat['pred'],
-                            marker=marker_styles['has_targets'][copula['has_targets']], s=50, facecolors='none',
-                            edgecolors=item_params[copula['name'].lower()]['color'], linewidth=1, label=label)
+            if copula['has_targets'] == "1":
+                continue
+            else:
+                label = f"{item_params[copula['name'].lower()]['name']} {'($X$, $Y$)' if copula['has_targets'] == '1' else '($X$)'}"
+                stat = copula['stats'][stat_name]
+                ax[idx].scatter(stat['true'], stat['pred'],
+                                marker=marker_styles['has_targets'][copula['has_targets']], s=50, facecolors='none',
+                                edgecolors=item_params[copula['name'].lower()]['color'], linewidth=1, label=label)
 
-        ax[idx].set_ylabel(f'Copula generated data {labels[idx].lower()}')
-        ax[idx].set_title(f'Errors in {labels[idx].lower()}')
-        ax[idx].set_xlabel(f'Real data {labels[idx].lower()}')
+        # make x and y axis span the same range
+        ax_min = min(ax[idx].get_xlim()[0], ax[idx].get_ylim()[0])
+        ax_max = max(ax[idx].get_xlim()[1], ax[idx].get_ylim()[1])
+        ax[idx].set_ybound(ax_min, ax_max)
+        ax[idx].set_xbound(ax_min, ax_max)
+        # diagonal
+        ax[idx].plot([ax_min, ax_max], [ax_min, ax_max], c='k', linestyle='--', label=r'$x=y$')
+        # labels
+        ax[idx].set_ylabel('Copula generated data', fontsize=14)
+        ax[idx].set_title(labels[idx], fontsize=16)
+        ax[idx].set_xlabel('Real data', fontsize=14)
         ax[idx].ticklabel_format(axis='both', style='sci', scilimits=(0, 0))
         ax[idx].set_box_aspect(1)
-
-    # Manually set limits as we can better control appearance
-    lims = [[1.77e6, 2.75e6], [1.2e10, 3.6e10], [1.1e5, 1.9e5],
-            [1.65e6, 2.55e6], [1.8e6, 2.85e6], [1.8e6, 2.85e6]]
-    for i, lim in enumerate(lims):
-        ax[i].set_ylim(lim)
-        ax[i].set_xlim(lim)
 
     ax[0].legend(loc='upper left')
 
     # Labels
     subplot_ids = list(string.ascii_lowercase)
     for i, ax in enumerate(ax.flatten()):
-        ax.text(-0.05, 1.06, '[' + subplot_ids[i] + ']', transform=ax.transAxes,
+        ax.text(-0.05, 1.15, '[' + subplot_ids[i] + ']', transform=ax.transAxes,
                 fontsize=12, va='top', ha='right')
 
     if fig_path:
-        plt.tight_layout(pad=3.)
+        plt.tight_layout()
         plt.savefig(fig_path)
 
 

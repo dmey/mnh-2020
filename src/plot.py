@@ -34,7 +34,8 @@ def plot_copula_fits(proj_path, plots_path):
     t0 = time.time()
     copulas = load_stats(proj_path / 'results' / 'stats')
     print(f"Loading took {time.time() - t0} s")
-    plot_error_proj(copulas, plots_path / 'copula_fittings.png')
+    plot_error_proj(copulas, plots_path / 'copula_fittings.svg')
+    plot_error_proj(copulas, plots_path / 'copula_fittings.pdf')
 
 
 def plot_copula_ml_fits(proj_path, plots_path, metric, data_fraction, plot_title, skip_x_label, subplot_ids):
@@ -69,10 +70,14 @@ def plot_copula_ml_fits(proj_path, plots_path, metric, data_fraction, plot_title
     stats_objs_emu = load_pkls('has_targets=1')
 
     plot_boxplot_multi(stats_objs_obs, stats_objs_emu, metric,
-                       plots_path / f'copula_ml_fits_{metric}.png',
+                       plots_path / f'copula_ml_fits_{metric}.svg',
                        plot_title=plot_title, skip_x_label=skip_x_label,
                        subplot_ids=subplot_ids)
 
+    plot_boxplot_multi(stats_objs_obs, stats_objs_emu, metric,
+                       plots_path / f'copula_ml_fits_{metric}.pdf',
+                       plot_title=plot_title, skip_x_label=skip_x_label,
+                       subplot_ids=subplot_ids)
 
 def load_best_mse_pkl(fname_filter, proj_path):
     data_path = proj_path / 'results' / 'ml'
@@ -158,7 +163,7 @@ def plot_diff_profile(proj_path, plot_path, data_fraction=1.0, batch_size=None, 
 
     plt.tight_layout()
     fig.savefig(plot_path / f"diff_profiles-batch_size={batch_size}"
-                f"-with_badnddepth={with_banddepth}-data_fraction={data_fraction}.png")
+                f"-with_badnddepth={with_banddepth}-data_fraction={data_fraction}.png", dpi=300)
 
 
 def diff_stats(proj_path, data_path, data_fraction=1.0, levels=slice(None, None)):
@@ -260,38 +265,39 @@ def plot_profiles(proj_path, plot_path, plot_copula, with_banddepth, batch_size,
         'temperature_fl': 'Dry-bulb air temperature in K',
         'pressure_hl': 'Atmospheric pressure in hPa',
         'layer_cloud_optical_depth': 'Cloud optical depth',
-        'flux_dn_lw': 'Downwelling longwave radiation in W m⁻²'
+        'flux_dn_lw': 'Downwelling longwave \n radiation in W m⁻²'
     }
 
     ds_inputs = load_ds_inputs(proj_path)
     if batch_size == None:
         batch_size = len(ds_inputs.column)
 
-    # Compute fluxes with physical model
-    column_gas_optical_depth = 1.7
-    flux_dn_hl_train = compute_layer_longwave_downwelling(
-        ds_inputs, column_gas_optical_depth)
-    ds_inputs = xr.merge([ds_inputs, flux_dn_hl_train])
-
-    ds_inputs['pressure_hl'] /= 100  # Convert Pa to hPa
-
-    n_rows = 2
-    n_cols = 2
-    mul_fac = 1
-
     if plot_copula:
+        ds_inputs['pressure_hl'] /= 100  # Convert Pa to hPa for plotting
         # Generate synthetic data using gaussian copula
         generator = syn.CopulaDataGenerator(verbose=True)
         generator.fit(ds_inputs, copula=syn.GaussianCopula(),
                       parameterize_by=None)
         ds_synth = generator.generate(n_samples=len(
             ds_inputs.column), qrng=True, seed=42)
-        n_rows = n_rows * 2
-        mul_fac = mul_fac * 2
+        n_rows = 3
+        n_cols = 2
+        figsize=(9,8)
+    else:
+        # Compute fluxes with physical model
+        column_gas_optical_depth = 1.7
+        flux_dn_hl_train = compute_layer_longwave_downwelling(
+            ds_inputs, column_gas_optical_depth)
+        ds_inputs = xr.merge([ds_inputs, flux_dn_hl_train])
 
-    _, ax = plt.subplots(n_rows, n_cols, figsize=(
-        n_rows*7/mul_fac, n_cols*4.2*mul_fac), squeeze=False, sharex=True)
-    for idx, name in enumerate(d_names.keys()):
+        ds_inputs['pressure_hl'] /= 100  # Convert Pa to hPa for plotting
+        n_rows = 2
+        n_cols = 2
+        figsize=(9,5.5)
+
+    
+    _, ax = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False, sharex=True)
+    for idx, name in enumerate(ds_inputs):
         print(f'Plotting {name}')
         if plot_copula:
             y_lim = find_ylim([ds_inputs[name], ds_synth[name]])
@@ -328,12 +334,12 @@ def plot_profiles(proj_path, plot_path, plot_copula, with_banddepth, batch_size,
     # Labels [a,b,c,d,...]
     subplot_ids = list(string.ascii_lowercase)
     for i, ax in enumerate(ax.flat):
-        ax.text(0, 1.08, '[' + subplot_ids[i] + ']', transform=ax.transAxes,
+        ax.text(0, 1.15, '[' + subplot_ids[i] + ']', transform=ax.transAxes,
                 fontsize=12, va='top', ha='right')
 
     plt.tight_layout()
     plt.savefig(plot_path / f"plot_profile-plot_copula={plot_copula}"
-                f"-with_banddepth={with_banddepth}-batch_size={batch_size}.png")
+                f"-with_banddepth={with_banddepth}-batch_size={batch_size}.png", dpi=300)
 
 
 if __name__ == "__main__":
@@ -349,9 +355,7 @@ if __name__ == "__main__":
     plot_profiles(PROJ_PATH, PLOTS_PATH,
         plot_copula=True, with_banddepth=True, batch_size=90, alpha=1)
     plot_copula_ml_fits(PROJ_PATH, PLOTS_PATH, 'bias',
-        data_fraction=1, plot_title=True, skip_x_label=True, subplot_ids=['a', 'b'])
-    plot_copula_ml_fits(PROJ_PATH, PLOTS_PATH, 'mae',
-        data_fraction=1, plot_title=False, skip_x_label=False, subplot_ids=['c', 'd'])
+        data_fraction=1, plot_title=True, skip_x_label=False, subplot_ids=['a', 'b'])
     plot_diff_profile(PROJ_PATH, PLOTS_PATH,
                       data_fraction=1.0, batch_size=None, with_banddepth=True)
     diff_stats(PROJ_PATH, DATA_PATH,
