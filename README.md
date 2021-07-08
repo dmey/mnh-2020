@@ -1,9 +1,7 @@
 
 ## Overview
 
-This is the development repository for the paper "[Copula-based synthetic data generation for machine learning emulators in weather and climate: application to a simple radiation model](https://arxiv.org/abs/2012.09037)" simply meant as a placeholder.
-
-For the paper's data archive that includes all model outputs as well as the [Singularity](https://sylabs.io/singularity/) image, please refer to https://doi.org/10.5281/zenodo.4320795 instead.
+This is the development repository for the paper "[Copula-based synthetic data augmentation for machine learning emulators](https://arxiv.org/abs/2012.09037)" simply meant as a placeholder.
 
 For the Python tool used to generate the synthetic data, please refer to the [Synthia repository](https://github.com/dmey/synthia).
 
